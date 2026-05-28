@@ -1,0 +1,50 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User role enum: ADMIN (max 2) or COWORKER (unlimited)
+enum Role {
+  ADMIN
+  COWORKER
+}
+
+// User model for authentication and role-based permissions
+model User {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  password       String
+  name           String
+  role           Role     @default(COWORKER)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  stores         Store[]  @relation("StoreCreatedBy")
+  assignedStores Store[]  @relation("StoreAssignments")
+
+  @@map("users")
+}
+
+// Store model for individual pharmacy locations
+model Store {
+  id          String   @id @default(uuid())
+  name        String
+  address     String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy   User     @relation("StoreCreatedBy", fields: [createdById], references: [id])
+  createdById String
+
+  coworkers   User[]   @relation("StoreAssignments")
+
+  @@map("stores")
+}
