@@ -5,6 +5,8 @@ import authRoutes from './routes/authRoutes';
 import storeRoutes from './routes/storeRoutes';
 import userRoutes from './routes/userRoutes';
 import medicineRoutes from './routes/medicineRoutes';
+import cosmeticRoutes from './routes/cosmeticRoutes';
+import dashboardRoutes from './routes/dashboardRoutes';
 
 // Load configuration variables from .env file into process.env
 dotenv.config();
@@ -47,6 +49,12 @@ app.use('/api/users', userRoutes);
 
 // Mount medicine routes (nested under stores)
 app.use('/api/stores', medicineRoutes);
+
+// Mount cosmetic routes (nested under stores)
+app.use('/api/stores', cosmeticRoutes);
+
+// Mount dashboard routes (nested under stores)
+app.use('/api/stores', dashboardRoutes);
 
 /**
  * Global centralized error-handling middleware.

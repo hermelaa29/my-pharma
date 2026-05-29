@@ -1,262 +1,378 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useParams, useNavigate } from 'react-router-dom';
-import { LogOut, User as UserIcon, Shield, Users, Pill, DollarSign, Calendar, ClipboardCheck, Bell, Activity, Store, ArrowLeft, Loader2 } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import {
+  Pill, Sparkles, Users, Shield, Calendar, Bell, Activity,
+  TrendingUp, AlertTriangle, Package, Loader2, UserCheck
+} from 'lucide-react';
 
-/**
- * Dashboard Page Component.
- * Presents a modern glassmorphic dashboard showcasing real-time analytics widgets.
- * Renders role-specific operations panel differences (Admin vs. Coworker).
- */
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
+interface StockStats {
+  totalItems: number;
+  totalQty: number;
+  totalPurchaseValue: number;
+  redFlaggedCount: number;
+}
+
+interface DashboardData {
+  store: { id: string; name: string; address?: string | null; description?: string | null; createdBy: { id: string; name: string; email: string } };
+  team: TeamMember[];
+  medicineStats: StockStats;
+  cosmeticStats: StockStats;
+  totalRedFlagged: number;
+}
+
 const Dashboard: React.FC = () => {
   const { user, token } = useAuth();
   const { storeId } = useParams<{ storeId: string }>();
 
-  const [storeData, setStoreData] = useState<{ name: string; address?: string | null } | null>(null);
-  const [loadingStore, setLoadingStore] = useState(true);
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!storeId || !token) return;
-    fetch(`/api/stores`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`/api/stores/${storeId}/dashboard`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(data => {
-        const found = data.stores?.find((s: any) => s.id === storeId);
-        if (found) setStoreData({ name: found.name, address: found.address });
-      })
+      .then(d => setData(d))
       .catch(() => {})
-      .finally(() => setLoadingStore(false));
+      .finally(() => setLoading(false));
   }, [storeId, token]);
 
   if (!user) return null;
 
-  // Static mock stats for pharmacy overview
-  const stats = [
-    { label: 'Today\'s Sales', value: '$2,845.50', icon: DollarSign, change: '+12.5%', color: 'from-emerald-500/20 to-teal-500/20 text-emerald-400' },
-    { label: 'Active Prescriptions', value: '48 Queue', icon: Pill, change: '12 urgent', color: 'from-emerald-500/20 to-brand-500/20 text-teal-400' },
-    { label: 'Inventory Items', value: '1,280 SKUs', icon: ClipboardCheck, change: '4 low stock', color: 'from-brand-500/20 to-teal-500/20 text-brand-400' },
-    { label: 'Staff Logged In', value: '6 Active', icon: Users, change: '2 admins', color: 'from-emerald-500/20 to-brand-700/20 text-emerald-400' },
-  ];
+  if (loading) {
+    return (
+      <div className="w-full max-w-7xl mx-auto flex items-center justify-center py-32">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 text-[#51a22e] animate-spin" />
+          <p className="text-sm font-semibold text-[#5b5b5b]/50">Loading dashboard…</p>
+        </div>
+      </div>
+    );
+  }
+
+  const medicineStats = data?.medicineStats ?? { totalItems: 0, totalQty: 0, totalPurchaseValue: 0, redFlaggedCount: 0 };
+  const cosmeticStats = data?.cosmeticStats ?? { totalItems: 0, totalQty: 0, totalPurchaseValue: 0, redFlaggedCount: 0 };
+  const team = data?.team ?? [];
+  const totalRedFlagged = data?.totalRedFlagged ?? 0;
+  const storeName = data?.store?.name ?? 'Dashboard';
+  const storeAddress = data?.store?.address;
+
+  const admins = team.filter(t => t.role === 'ADMIN');
+  const coworkers = team.filter(t => t.role === 'COWORKER');
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 animate-fade-in">
         
-      {/* Welcome Section */}
+      {/* ─── Welcome Header ───────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-[#5b5b5b] tracking-tight">
-            {storeData ? storeData.name : 'Dashboard Overview'}
+            {storeName}
           </h2>
           <p className="text-[#5b5b5b]/60 text-sm mt-1">
-            Welcome back, {user.name}. Here is what is happening{storeData ? ` at ${storeData.name}` : ' at PharmaVault'} today.
+            Welcome back, {user.name}. Here is an overview of your store.
           </p>
-          {storeData?.address && (
-            <p className="text-xs text-[#51a22e] mt-0.5 font-medium">📍 {storeData.address}</p>
+          {storeAddress && (
+            <p className="text-xs text-[#51a22e] mt-0.5 font-medium">📍 {storeAddress}</p>
           )}
         </div>
         <div className="flex items-center gap-2 text-xs font-semibold text-[#5b5b5b]/50 bg-white/60 backdrop-blur-sm px-3.5 py-2 rounded-xl border border-gray-200 shadow-sm self-start sm:self-center">
           <Calendar className="w-4 h-4 text-[#51a22e]" />
-          <span>Last Sync: {new Date().toLocaleDateString()}</span>
+          <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, idx) => (
-          <div key={idx} className="bg-white/80 backdrop-blur-sm glass-card-hover rounded-2xl p-6 border border-white/50 shadow-sm transition-all duration-300 relative overflow-hidden group">
+      {/* ─── Stock Overview Cards ─────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        {/* Medicine Stock */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-white/50 shadow-sm transition-all duration-300 relative overflow-hidden group hover:shadow-md">
+          <div className="absolute -right-6 -top-6 w-28 h-28 bg-[#51a22e]/5 rounded-full blur-2xl group-hover:bg-[#51a22e]/10 transition-colors"></div>
+          <div className="relative z-10">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-[#5b5b5b]/60">{stat.label}</span>
-              <div className={`p-2.5 rounded-xl bg-[#51a22e]/10 flex items-center justify-center border border-[#51a22e]/20`}>
-                <stat.icon className="w-5 h-5 text-[#51a22e]" />
+              <span className="text-sm font-semibold text-[#5b5b5b]/60">Medicine Stock</span>
+              <div className="p-2.5 rounded-xl bg-[#51a22e]/10 flex items-center justify-center border border-[#51a22e]/20">
+                <Pill className="w-5 h-5 text-[#51a22e]" />
               </div>
             </div>
-            <div className="mt-4 space-y-1">
-              <h3 className="text-2xl font-extrabold text-[#5b5b5b] tracking-tight">{stat.value}</h3>
-              <p className="text-xs text-[#51a22e] font-semibold flex items-center gap-1">
-                <span>{stat.change}</span>
-                <span className="text-[#5b5b5b]/40 font-normal">since yesterday</span>
-              </p>
+            <div className="mt-4 space-y-3">
+              <h3 className="text-3xl font-extrabold text-[#5b5b5b] tracking-tight">{medicineStats.totalItems.toLocaleString()}</h3>
+              <p className="text-[11px] text-[#5b5b5b]/40 font-bold uppercase tracking-wider">Total Items Registered</p>
+              <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                <div>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">Total Qty</p>
+                  <p className="text-lg font-black text-[#5b5b5b]">{medicineStats.totalQty.toLocaleString()}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">Purchase Value</p>
+                  <p className="text-sm font-extrabold text-[#51a22e] flex items-center justify-end gap-1">
+                    <TrendingUp className="w-3 h-3" />
+                    ${medicineStats.totalPurchaseValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
 
-      {/* Dynamic Role panels */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Main workspace (takes up 2 columns) */}
-        <div className="lg:col-span-2 space-y-8">
-          
-          {/* ROLE-SPECIFIC WORKSPACE */}
-          {user.role === 'ADMIN' ? (
-            
-            /* ADMIN WORKSPACE PANEL */
-            <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-[#51a22e]/20 shadow-sm relative overflow-hidden space-y-6">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#51a22e] to-[#65c939] rounded-t-2xl"></div>
-              <div className="flex items-center justify-between border-b border-gray-100/50 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-[#51a22e]/10 text-[#51a22e]">
-                    <Shield className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-[#5b5b5b]">Administrative Operations Console</h3>
-                    <p className="text-xs text-[#5b5b5b]/50">High-level store configuration and security metrics</p>
-                  </div>
-                </div>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-[#51a22e]/10 text-[#51a22e] border border-[#51a22e]/20 uppercase tracking-widest">
-                  Admin Active
-                </span>
+        {/* Cosmetics Stock */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-white/50 shadow-sm transition-all duration-300 relative overflow-hidden group hover:shadow-md">
+          <div className="absolute -right-6 -top-6 w-28 h-28 bg-purple-500/5 rounded-full blur-2xl group-hover:bg-purple-500/10 transition-colors"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-[#5b5b5b]/60">Cosmetics Stock</span>
+              <div className="p-2.5 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+                <Sparkles className="w-5 h-5 text-purple-500" />
               </div>
-
-              {/* Database Metrics and capacity */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-[#d9ead3]/40 border border-[#51a22e]/15">
-                  <p className="text-xs font-semibold text-[#5b5b5b]/50">System Admin Capacity</p>
-                  <div className="flex items-baseline justify-between mt-2">
-                    <span className="text-2xl font-black text-[#5b5b5b]">2 / 2 Admins</span>
-                    <span className="text-[10px] font-bold text-[#51a22e] bg-[#51a22e]/10 px-2 py-0.5 rounded border border-[#51a22e]/20 uppercase">
-                      Max Capacity
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200/50 h-1.5 rounded-full mt-3 overflow-hidden">
-                    <div className="bg-[#51a22e] h-full w-full rounded-full"></div>
-                  </div>
-                  <p className="text-[10px] text-[#5b5b5b]/40 mt-2">
-                    Constraint Active: Database prevents registration of a 3rd Admin.
-                  </p>
+            </div>
+            <div className="mt-4 space-y-3">
+              <h3 className="text-3xl font-extrabold text-[#5b5b5b] tracking-tight">{cosmeticStats.totalItems.toLocaleString()}</h3>
+              <p className="text-[11px] text-[#5b5b5b]/40 font-bold uppercase tracking-wider">Total Items Registered</p>
+              <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                <div>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">Total Qty</p>
+                  <p className="text-lg font-black text-[#5b5b5b]">{cosmeticStats.totalQty.toLocaleString()}</p>
                 </div>
-
-                <div className="p-4 rounded-xl bg-[#d9ead3]/40 border border-[#51a22e]/15">
-                  <p className="text-xs font-semibold text-[#5b5b5b]/50">System Health Status</p>
-                  <div className="flex items-baseline justify-between mt-2">
-                    <span className="text-2xl font-black text-[#5b5b5b]">Operational</span>
-                    <span className="inline-flex w-2.5 h-2.5 bg-[#51a22e] rounded-full animate-ping"></span>
-                  </div>
-                  <p className="text-[10px] text-[#5b5b5b]/40 mt-5">
-                    PostgreSQL Connection &amp; Prisma ORM actively synced.
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">Purchase Value</p>
+                  <p className="text-sm font-extrabold text-purple-500 flex items-center justify-end gap-1">
+                    <TrendingUp className="w-3 h-3" />
+                    ${cosmeticStats.totalPurchaseValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                </div>
-              </div>
-
-              {/* Audit Actions checklist */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-[#51a22e] uppercase tracking-wider">
-                  Executive Store Operations
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {['Manage Pharmacy Store Inventory', 'Audit Staff & Access Permissions', 'Configure Drug Master List', 'View Financial Sales Audits'].map((action, i) => (
-                    <button key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white hover:bg-[#51a22e]/5 border border-gray-100 hover:border-[#51a22e]/30 text-[#5b5b5b] hover:text-[#51a22e] text-left text-sm font-semibold transition-all cursor-pointer">
-                      <div className="w-2 h-2 rounded-full bg-[#51a22e]"></div>
-                      <span>{action}</span>
-                    </button>
-                  ))}
                 </div>
               </div>
             </div>
+          </div>
+        </div>
 
-          ) : (
-
-            /* COWORKER WORKSPACE PANEL */
-            <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-[#51a22e]/20 shadow-sm relative overflow-hidden space-y-6">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#51a22e] to-[#65c939] rounded-t-2xl"></div>
-              
-              <div className="flex items-center justify-between border-b border-gray-100/50 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-[#51a22e]/10 text-[#51a22e]">
-                    <Users className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-[#5b5b5b]">Coworker Operations Workspace</h3>
-                    <p className="text-xs text-[#5b5b5b]/50">Manage prescription fulfillments and daily shifts</p>
-                  </div>
+        {/* Alerts Overview */}
+        <div className={`bg-white/90 backdrop-blur-sm rounded-2xl p-6 border shadow-sm transition-all duration-300 relative overflow-hidden group hover:shadow-md ${
+          totalRedFlagged > 0 ? 'border-red-200' : 'border-white/50'
+        }`}>
+          <div className={`absolute -right-6 -top-6 w-28 h-28 rounded-full blur-2xl transition-colors ${
+            totalRedFlagged > 0 ? 'bg-red-500/5 group-hover:bg-red-500/10' : 'bg-gray-500/5 group-hover:bg-gray-500/10'
+          }`}></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-[#5b5b5b]/60">Expiry Alerts</span>
+              <div className={`p-2.5 rounded-xl flex items-center justify-center border ${
+                totalRedFlagged > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'
+              }`}>
+                <AlertTriangle className={`w-5 h-5 ${totalRedFlagged > 0 ? 'text-red-500' : 'text-gray-400'}`} />
+              </div>
+            </div>
+            <div className="mt-4 space-y-3">
+              <h3 className={`text-3xl font-extrabold tracking-tight ${totalRedFlagged > 0 ? 'text-red-500' : 'text-[#5b5b5b]'}`}>
+                {totalRedFlagged}
+              </h3>
+              <p className="text-[11px] text-[#5b5b5b]/40 font-bold uppercase tracking-wider">
+                Items Expired or Expiring Soon
+              </p>
+              <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                <div className="flex items-center gap-1.5">
+                  <Pill className="w-3 h-3 text-[#51a22e]" />
+                  <span className="text-xs font-bold text-[#5b5b5b]">{medicineStats.redFlaggedCount} Medicine</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3 text-purple-500" />
+                  <span className="text-xs font-bold text-[#5b5b5b]">{cosmeticStats.redFlaggedCount} Cosmetics</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-              {/* Standard staff duties grid */}
-              <div className="space-y-4">
-                <h4 className="text-xs font-bold text-[#51a22e] uppercase tracking-wider">
-                  Active Fulfillments Queue
-                </h4>
-                
-                <div className="space-y-2">
-                  {[
-                    { id: 'RX-9402', patient: 'Arthur Pendragon', drug: 'Amoxicillin 500mg', status: 'Pending Review', color: 'text-amber-600 bg-amber-50 border-amber-200' },
-                    { id: 'RX-8104', patient: 'Morgana Le Fay', drug: 'Metformin 850mg', status: 'Ready to Dispense', color: 'text-[#51a22e] bg-[#51a22e]/5 border-[#51a22e]/20' },
-                    { id: 'RX-7729', patient: 'Guinevere Smith', drug: 'Lisinopril 10mg', status: 'In Process', color: 'text-sky-600 bg-sky-50 border-sky-200' }
-                  ].map((rx, idx) => (
-                    <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white border border-gray-100 hover:border-[#51a22e]/20 transition-colors gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-black text-[#51a22e]">{rx.id}</span>
-                          <span className="text-gray-200 text-xs">|</span>
-                          <span className="text-xs font-semibold text-[#5b5b5b]">{rx.patient}</span>
-                        </div>
-                        <p className="text-sm font-bold text-[#5b5b5b] mt-1">{rx.drug}</p>
-                      </div>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider self-start sm:self-center ${rx.color}`}>
-                        {rx.status}
-                      </span>
+      {/* ─── Team & Operations ────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Team Panel (2 cols) */}
+        <div className="lg:col-span-2 bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-[#51a22e]/15 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#51a22e] to-[#65c939] rounded-t-2xl"></div>
+          
+          <div className="flex items-center justify-between border-b border-gray-100/50 pb-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-[#51a22e]/10 text-[#51a22e]">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-[#5b5b5b]">Store Team</h3>
+                <p className="text-xs text-[#5b5b5b]/50">{team.length} member{team.length !== 1 ? 's' : ''} with access to this store</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#51a22e]/10 text-[#51a22e] text-[10px] font-extrabold rounded-lg border border-[#51a22e]/20 uppercase tracking-wider">
+              <UserCheck className="w-3 h-3" />
+              {team.length} Active
+            </div>
+          </div>
+
+          {/* Admins Section */}
+          {admins.length > 0 && (
+            <div className="mb-6">
+              <h4 className="text-[11px] font-black text-[#51a22e] uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Shield className="w-3.5 h-3.5" />
+                Administrators ({admins.length})
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {admins.map(admin => (
+                  <div key={admin.id} className="flex items-center gap-3 p-3.5 rounded-xl bg-gradient-to-br from-[#51a22e]/5 to-transparent border border-[#51a22e]/15 hover:border-[#51a22e]/30 transition-colors">
+                    <div className="w-10 h-10 rounded-full bg-[#51a22e]/15 border border-[#51a22e]/25 flex items-center justify-center text-[#51a22e] flex-shrink-0">
+                      <Shield className="w-4 h-4" />
                     </div>
-                  ))}
-                </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-[#5b5b5b] truncate">{admin.name}</p>
+                      <p className="text-[11px] text-[#5b5b5b]/40 truncate">{admin.email}</p>
+                    </div>
+                    <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold bg-[#51a22e]/10 text-[#51a22e] border border-[#51a22e]/20 uppercase tracking-wider flex-shrink-0">
+                      Admin
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Standard Shared Component: General Operations Logs */}
-          <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-white/50 shadow-sm space-y-4">
-            <h3 className="text-lg font-bold text-[#5b5b5b]">General Pharmacy Log Feed</h3>
-            <div className="space-y-3">
-              {[
-                { time: '14:22', text: 'Admin initialized daily backup sequence', role: 'ADMIN', user: 'System' },
-                { time: '13:05', text: 'Prescription RX-8104 marked as Ready', role: 'COWORKER', user: 'Sarah Connor' },
-                { time: '11:40', text: 'Low stock notification flagged for Ibuprofen 400mg', role: 'SYSTEM', user: 'Inventory Bot' }
-              ].map((log, idx) => (
-                <div key={idx} className="flex items-start gap-4 text-sm border-l-2 border-[#51a22e]/30 pl-4 py-1">
-                  <span className="text-[#5b5b5b]/40 text-xs font-medium font-mono mt-0.5">{log.time}</span>
-                  <div>
-                    <p className="text-[#5b5b5b] font-semibold">{log.text}</p>
-                    <p className="text-[10px] text-[#5b5b5b]/40 mt-0.5">
-                      Triggered by {log.user} ({log.role})
-                    </p>
+          {/* Coworkers Section */}
+          {coworkers.length > 0 && (
+            <div>
+              <h4 className="text-[11px] font-black text-[#5b5b5b]/50 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Users className="w-3.5 h-3.5" />
+                Coworkers ({coworkers.length})
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {coworkers.map(cw => (
+                  <div key={cw.id} className="flex items-center gap-3 p-3.5 rounded-xl bg-gray-50/80 border border-gray-100 hover:border-[#51a22e]/20 transition-colors">
+                    <div className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 flex-shrink-0">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-[#5b5b5b] truncate">{cw.name}</p>
+                      <p className="text-[11px] text-[#5b5b5b]/40 truncate">{cw.email}</p>
+                    </div>
+                    <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-500 border border-gray-200 uppercase tracking-wider flex-shrink-0">
+                      Coworker
+                    </span>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
+          {team.length === 0 && (
+            <div className="text-center py-8 text-sm text-[#5b5b5b]/40">
+              No team members found for this store.
+            </div>
+          )}
         </div>
 
-        {/* Right Sidebar details (takes up 1 column) */}
-        <div className="space-y-8">
+        {/* Right sidebar: Quick Info */}
+        <div className="space-y-6">
           
-          {/* System Notifications sidebar panel */}
+          {/* Store Info */}
           <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-white/50 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-gray-100/50 pb-3">
               <h3 className="text-sm font-bold text-[#5b5b5b] uppercase tracking-wider flex items-center gap-2">
-                <Bell className="w-4 h-4 text-[#51a22e]" /> System Broadcasts
+                <Activity className="w-4 h-4 text-[#51a22e]" />
+                Store Overview
               </h3>
               <span className="w-2 h-2 rounded-full bg-[#51a22e] animate-pulse"></span>
             </div>
-            
-            <div className="space-y-3.5">
-              <div className="p-3 bg-[#51a22e]/5 rounded-xl border border-[#51a22e]/10 space-y-1">
-                <p className="text-xs font-bold text-[#51a22e]">Strict Safety Checklists</p>
-                <p className="text-xs text-[#5b5b5b]/60 leading-relaxed">
-                  Always confirm patient identity and double-check prescriptions dosage metrics prior to dispensing any items.
-                </p>
-              </div>
 
-              <div className="p-3 bg-[#d9ead3]/40 rounded-xl border border-[#51a22e]/10 space-y-1">
-                <p className="text-xs font-bold text-[#51a22e]">Role Capability Details</p>
-                <ul className="text-[11px] text-[#5b5b5b]/60 space-y-1 list-disc list-inside">
-                  <li>Admins: Audit logs &amp; configs</li>
-                  <li>Coworkers: Dispense &amp; register items</li>
-                  <li>Both: Account management</li>
-                </ul>
+            <div className="space-y-3">
+              <div className="p-3 bg-[#51a22e]/5 rounded-xl border border-[#51a22e]/10">
+                <p className="text-[10px] font-bold text-[#51a22e] uppercase tracking-wider mb-1">Store Name</p>
+                <p className="text-sm font-bold text-[#5b5b5b]">{storeName}</p>
+              </div>
+              {storeAddress && (
+                <div className="p-3 bg-[#d9ead3]/40 rounded-xl border border-[#51a22e]/10">
+                  <p className="text-[10px] font-bold text-[#51a22e] uppercase tracking-wider mb-1">Address</p>
+                  <p className="text-sm font-bold text-[#5b5b5b]">{storeAddress}</p>
+                </div>
+              )}
+              {data?.store?.description && (
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Description</p>
+                  <p className="text-xs text-[#5b5b5b]/60 leading-relaxed">{data.store.description}</p>
+                </div>
+              )}
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Created By</p>
+                <p className="text-sm font-bold text-[#5b5b5b]">{data?.store?.createdBy?.name ?? '—'}</p>
+                <p className="text-[10px] text-[#5b5b5b]/40">{data?.store?.createdBy?.email ?? ''}</p>
               </div>
             </div>
           </div>
 
+          {/* Alerts Summary */}
+          <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-white/50 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100/50 pb-3">
+              <h3 className="text-sm font-bold text-[#5b5b5b] uppercase tracking-wider flex items-center gap-2">
+                <Bell className="w-4 h-4 text-[#51a22e]" />
+                Notifications
+              </h3>
+              {totalRedFlagged > 0 && (
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-black">
+                  {totalRedFlagged > 9 ? '9+' : totalRedFlagged}
+                </span>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              {totalRedFlagged > 0 ? (
+                <>
+                  {medicineStats.redFlaggedCount > 0 && (
+                    <div className="flex items-center gap-3 p-3 bg-red-50 rounded-xl border border-red-100">
+                      <Pill className="w-4 h-4 text-red-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs font-bold text-red-600">{medicineStats.redFlaggedCount} Medicine{medicineStats.redFlaggedCount > 1 ? 's' : ''}</p>
+                        <p className="text-[10px] text-red-400">Expired or expiring within 3 months</p>
+                      </div>
+                    </div>
+                  )}
+                  {cosmeticStats.redFlaggedCount > 0 && (
+                    <div className="flex items-center gap-3 p-3 bg-red-50 rounded-xl border border-red-100">
+                      <Sparkles className="w-4 h-4 text-red-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs font-bold text-red-600">{cosmeticStats.redFlaggedCount} Cosmetic{cosmeticStats.redFlaggedCount > 1 ? 's' : ''}</p>
+                        <p className="text-[10px] text-red-400">Expired or expiring within 3 months</p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="p-4 bg-[#51a22e]/5 rounded-xl border border-[#51a22e]/10 text-center">
+                  <p className="text-xs font-bold text-[#51a22e]">✓ All Clear</p>
+                  <p className="text-[10px] text-[#5b5b5b]/40 mt-1">No expiring items detected</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Role Badge */}
+          <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-5 border border-white/50 shadow-sm flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+              user.role === 'ADMIN' ? 'bg-[#51a22e]/10 text-[#51a22e] border border-[#51a22e]/20' : 'bg-gray-100 text-gray-500 border border-gray-200'
+            }`}>
+              {user.role === 'ADMIN' ? <Shield className="w-6 h-6" /> : <Users className="w-6 h-6" />}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-[#5b5b5b]">{user.name}</p>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider mt-1 ${
+                user.role === 'ADMIN' 
+                  ? 'bg-[#51a22e]/10 text-[#51a22e] border border-[#51a22e]/20' 
+                  : 'bg-gray-100 text-gray-500 border border-gray-200'
+              }`}>
+                {user.role}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

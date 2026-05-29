@@ -24,6 +24,7 @@ const StoreLayout: React.FC = () => {
 
   const [storeName, setStoreName] = useState<string>('Loading...');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
 
   // Fetch the store name for the sidebar
   useEffect(() => {
@@ -37,6 +38,19 @@ const StoreLayout: React.FC = () => {
       .catch(() => setStoreName('Pharmacy Store'));
   }, [storeId, token]);
 
+  // Fetch notification count from the dashboard endpoint
+  useEffect(() => {
+    if (!storeId || !token) return;
+    fetch(`/api/stores/${storeId}/dashboard`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (typeof data.totalRedFlagged === 'number') {
+          setNotificationCount(data.totalRedFlagged);
+        }
+      })
+      .catch(() => {});
+  }, [storeId, token]);
+
   if (!user) return null;
 
   const navLinks = [
@@ -44,7 +58,7 @@ const StoreLayout: React.FC = () => {
     { to: `/dashboard/${storeId}/medicine`, label: 'Medicine', icon: Pill },
     { to: `/dashboard/${storeId}/cosmetics`, label: 'Cosmetics', icon: Sparkles },
     { to: `/dashboard/${storeId}/transaction`, label: 'Transaction', icon: ArrowRightLeft },
-    { to: `/dashboard/${storeId}/notification`, label: 'Notification', icon: Bell },
+    { to: `/dashboard/${storeId}/notification`, label: 'Notification', icon: Bell, badge: notificationCount },
   ];
 
   return (
@@ -123,18 +137,23 @@ const StoreLayout: React.FC = () => {
             <NavLink
               key={link.to}
               to={link.to}
-              end={link.exact}
+              end={(link as any).exact}
               onClick={() => setIsMobileMenuOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer relative ${
                   isActive
                     ? 'bg-[#51a22e] text-white shadow-md shadow-[#51a22e]/20 translate-x-1'
                     : 'text-[#5b5b5b]/70 hover:bg-[#51a22e]/10 hover:text-[#51a22e]'
                 }`
               }
             >
-              <link.icon className="w-5 h-5" />
+              <link.icon className={`w-5 h-5 ${'badge' in link && (link as any).badge > 0 ? 'animate-bounce' : ''}`} style={'badge' in link && (link as any).badge > 0 ? { animationDuration: '2s', animationIterationCount: 3 } : undefined} />
               {link.label}
+              {'badge' in link && (link as any).badge > 0 && (
+                <span className="ml-auto flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-black shadow-sm">
+                  {(link as any).badge > 99 ? '99+' : (link as any).badge}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

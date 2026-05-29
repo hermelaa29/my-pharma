@@ -46,6 +46,7 @@ model Store {
 
   coworkers   User[]   @relation("StoreAssignments")
   medicines   Medicine[]
+  cosmetics   Cosmetic[]
 
   @@map("stores")
 }
@@ -75,4 +76,31 @@ model Medicine {
   updatedAt        DateTime @updatedAt
 
   @@map("medicines")
+}
+
+// Cosmetic model for tracking retail and beauty inventory
+model Cosmetic {
+  id               String   @id @default(uuid())
+  storeId          String
+  store            Store    @relation(fields: [storeId], references: [id])
+  
+  itemCode         String
+  itemName         String
+  receivedDate     DateTime?
+  category         String?
+  wholesaler       String?
+  quantityReceived Int      @default(0)
+  quantityIssued   Int      @default(0)
+  lossAdjustment   Int      @default(0)
+  currentQuantity  Int      @default(0)
+  expireDate       DateTime?
+  batchNumber      String?
+  purchasePrice    Float    @default(0)
+  salePrice        Float    @default(0)
+  remark           String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("cosmetics")
 }
